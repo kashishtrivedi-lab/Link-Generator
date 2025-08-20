@@ -1,6 +1,6 @@
 from flask import Flask, request, render_template
 import pandas as pd
-import re
+
 import random
 import os
 from datetime import datetime

@@ -4,7 +4,7 @@ import pandas as pd
 import random
 import os
 from datetime import datetime
-
+import re
 app = Flask(__name__)
 
 # Google Sheet CSV export link

@@ -1,39 +1,33 @@
 from flask import Flask, request, render_template
 import pandas as pd
-import re
 import random
 import os
 from datetime import datetime
+import re
 
 app = Flask(__name__)
 
-# Google Sheet CSV export link
 GOOGLE_SHEET_CSV = "https://docs.google.com/spreadsheets/d/1271IFIvoL7AwwiSIxJrf3VJ4fLUtjp6LA_r3MXt2HEA/export?format=csv&gid=0"
-
-# Stats log file
 STATS_FILE = "link_stats.csv"
 
-# Ensure stats file exists with header
 if not os.path.exists(STATS_FILE):
     with open(STATS_FILE, "w") as f:
         f.write("date,campaign,link_type,pid_count,links_generated\n")
 
+
 def load_data():
-    """Load Google Sheet and clean up formatting"""
     df = pd.read_csv(GOOGLE_SHEET_CSV)
     df.columns = df.columns.str.strip()
-    df = df.applymap(lambda val: val.strip().replace('\u00A0', ' ') if isinstance(val, str) else val)
+    df = df.applymap(lambda v: v.strip().replace('\u00A0', ' ') if isinstance(v, str) else v)
     df.fillna("", inplace=True)
     return df
 
-def log_link_stats(campaign, link_type, pid_count, links_generated):
-    """Append or update link generation stats to CSV (date-wise merge)"""
-    date_str = datetime.now().strftime("%Y-%m-%d")
 
-    if os.path.exists(STATS_FILE):
-        stats_df = pd.read_csv(STATS_FILE)
-    else:
-        stats_df = pd.DataFrame(columns=["date", "campaign", "link_type", "pid_count", "links_generated"])
+def log_link_stats(campaign, link_type, pid_count, links_generated):
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    stats_df = pd.read_csv(STATS_FILE) if os.path.exists(STATS_FILE) else pd.DataFrame(
+        columns=["date", "campaign", "link_type", "pid_count", "links_generated"]
+    )
 
     mask = (
         (stats_df["date"] == date_str) &
@@ -45,16 +39,30 @@ def log_link_stats(campaign, link_type, pid_count, links_generated):
     if mask.any():
         stats_df.loc[mask, "links_generated"] += links_generated
     else:
-        new_row = pd.DataFrame([{
+        stats_df = pd.concat([stats_df, pd.DataFrame([{
             "date": date_str,
             "campaign": campaign,
             "link_type": link_type,
             "pid_count": pid_count,
             "links_generated": links_generated
-        }])
-        stats_df = pd.concat([stats_df, new_row], ignore_index=True)
+        }])], ignore_index=True)
 
     stats_df.to_csv(STATS_FILE, index=False)
+
+
+def apply_publisher_macros(link, publisher, publisher_macros):
+    if not link or not publisher or not publisher_macros:
+        return link
+
+    macros = [m.strip().lstrip("&") for m in publisher_macros.split(",") if m.strip()]
+    for macro in macros:
+        if re.search(rf'([?&]){macro}=', link):
+            link = re.sub(rf'([?&]){macro}=[^&]*', rf'\1{macro}={publisher}', link)
+        else:
+            sep = "&" if "?" in link else "?"
+            link = f"{link}{sep}{macro}={publisher}"
+    return link
+
 
 link_types = ["CTA", "VTA", "CTV", "Onelink CTA", "Onelink vta"]
 
@@ -63,119 +71,84 @@ def index():
     df = load_data()
     campaigns = df["Campaign"].unique()
     oses = df["os"].unique()
-
     final_links = []
 
     if request.method == "POST":
-        campaign = request.form['campaign'].strip()
-        os_vals = request.form.getlist('os')
-        pid_inputs = [pid.strip() for pid in request.form['pid'].split(",") if pid.strip()]
-        publisher = request.form['publisher'].strip()
-        selected_link_types = request.form.getlist('link_type')
+        campaign = request.form["campaign"].strip()
+        os_vals = request.form.getlist("os")
+        pid_inputs = [p.strip() for p in request.form["pid"].split(",") if p.strip()]
+        publisher = request.form["publisher"].strip()
+        selected_link_types = request.form.getlist("link_type")
 
         row_matches = df[(df["Campaign"] == campaign) & (df["os"].isin(os_vals))]
-
         if row_matches.empty:
             final_links.append("No matching campaign and OS found.")
-        else:
-            processed_special_types = set()
-            kraken_used_combinations = set()
-            generated_pid_os_set = set()  # To avoid duplicates
+            return render_template("index.html", campaigns=campaigns, oses=oses,
+                                   link_types=link_types, final_links=final_links)
 
-            # Handle special link types for non-Moneyman campaigns
-            if campaign.lower() != "moneyman":
-                for special_link_type in ["Onelink CTA", "Onelink vta", "CTV"]:
-                    if special_link_type in selected_link_types:
-                        base_link = ""
-                        selected_row = None
+        generated_set = set()
+        kraken_used = set()
 
-                        for _, row in row_matches.iterrows():
-                            candidate_link = row.get(special_link_type, "").strip()
-                            if candidate_link:
-                                base_link = candidate_link
-                                selected_row = row
-                                break
+        # ---------- SPECIAL LINKS ----------
+        for lt in ["Onelink CTA", "Onelink vta", "CTV"]:
+            if lt not in selected_link_types:
+                continue
+            base_link, row_ref = "", None
+            for _, r in row_matches.iterrows():
+                if r.get(lt):
+                    base_link, row_ref = r.get(lt).strip(), r
+                    break
+            if not base_link:
+                continue
+            publisher_macros = row_ref.get("Publisher name", "").strip()
+            for pid in pid_inputs:
+                key = (lt, pid)
+                if key in generated_set:
+                    continue
+                link = re.sub(r'pid=[^&]*', f'pid={pid}', base_link)
+                link = apply_publisher_macros(link, publisher, publisher_macros)
 
-                        if base_link:
-                            pub_key = selected_row.get("Publisher name", "").strip().lstrip("&")
+                # ✅ Angel One logic: replace anything after "c=App_Inno_Axponent_" with the actual PID
+                if campaign.lower().replace(" ", "") in ["angelone", "angel_one"]:
+                    link = re.sub(r'(c=App_Inno_Axponent_)[^&]*', rf'\1{pid}', link)
 
-                            for pid in pid_inputs:
-                                key = (special_link_type, pid)
-                                if key in generated_pid_os_set:
-                                    continue
+                # Kraken logic
+                if campaign.lower().startswith("kraken") and key not in kraken_used:
+                    link = re.sub(r'af_sub5=[^&]*',
+                                  f'af_sub5={random.choice(["1491074310","1617391485","591560124"])}', link)
+                    link = re.sub(r'af_ad=[^&]*',
+                                  f'af_ad={random.choice(["Consumer-Banners-Creative-Refresh","Kraken_Set_Trading"])}',
+                                  link)
+                    kraken_used.add(key)
 
-                                link = re.sub(r'pid=[^&]*', f'pid={pid}', base_link)
+                final_links.append(f"{lt} (PID: {pid}): {link}")
+                generated_set.add(key)
+            log_link_stats(campaign, lt, len(pid_inputs), len(pid_inputs))
 
-                                if pub_key and f"{pub_key}=" in link:
-                                    link = re.sub(rf'{pub_key}=[^&]*', f'{pub_key}={publisher}', link)
-
-                                if campaign.lower() == "banki":
-                                    for field in ["c", "af_c_id", "af_channel"]:
-                                        link = re.sub(rf'{field}=afl_26_24_cpa_zorka_[^&]*',
-                                                      f'{field}=afl_26_24_cpa_zorka_{pid}', link)
-
-                                if campaign.lower().startswith("kraken") and key not in kraken_used_combinations:
-                                    af_sub5_random = random.choice(["1491074310", "1617391485", "591560124"])
-                                    af_ad_random = random.choice(["Consumer-Banners-Creative-Refresh", "Kraken_Set_Trading"])
-                                    link = re.sub(r'af_sub5=[^&]*', f'af_sub5={af_sub5_random}', link)
-                                    link = re.sub(r'af_ad=[^&]*', f'af_ad={af_ad_random}', link)
-                                    kraken_used_combinations.add(key)
-
-                                final_links.append(f"{special_link_type} (PID: {pid}): {link}")
-                                generated_pid_os_set.add(key)
-
-                            log_link_stats(campaign, special_link_type, len(pid_inputs), len(pid_inputs))
-                            processed_special_types.add(special_link_type)
-
-                selected_link_types = [lt for lt in selected_link_types if lt not in processed_special_types]
-
-            # Handle normal link types
-            for _, row_data in row_matches.iterrows():
-                current_os = row_data.get("os", "").strip()
-                pub_key = row_data.get("Publisher name", "").strip().lstrip("&")
-
-                for link_type in selected_link_types:
-                    base_link = row_data.get(link_type, "").strip()
-                    if not base_link:
+        # ---------- NORMAL LINKS ----------
+        for _, row in row_matches.iterrows():
+            os_val = row.get("os", "").strip()
+            publisher_macros = row.get("Publisher name", "").strip()
+            for lt in selected_link_types:
+                base_link = row.get(lt, "").strip()
+                if not base_link:
+                    continue
+                for pid in pid_inputs:
+                    key = (lt, os_val, pid)
+                    if key in generated_set:
                         continue
+                    link = re.sub(r'pid=[^&]*', f'pid={pid}', base_link)
+                    link = apply_publisher_macros(link, publisher, publisher_macros)
 
-                    link_count_for_type = 0
+                    # ✅ Angel One logic for normal links
+                    if campaign.lower().replace(" ", "") in ["angelone", "angel_one"]:
+                        link = re.sub(r'(c=App_Inno_Axponent_)[^&]*', rf'\1{pid}', link)
 
-                    for pid in pid_inputs:
-                        key = (link_type, current_os, pid)
-                        if key in generated_pid_os_set:
-                            continue
+                    final_links.append(f"{lt} (OS: {os_val}, PID: {pid}): {link}")
+                    generated_set.add(key)
 
-                        link = re.sub(r'pid=[^&]*', f'pid={pid}', base_link)
-
-                        if pub_key and f"{pub_key}=" in link:
-                            link = re.sub(rf'{pub_key}=[^&]*', f'{pub_key}={publisher}', link)
-
-                        if campaign.lower() == "moneyman" and 'af_sub1=' in link:
-                            link = re.sub(r'af_sub1=[^&]*', f'af_sub1={pid}', link)
-
-                        if campaign.lower() == "banki":
-                            for field in ["c", "af_c_id", "af_channel"]:
-                                link = re.sub(rf'{field}=afl_26_24_cpa_zorka_[^&]*',
-                                              f'{field}=afl_26_24_cpa_zorka_{pid}', link)
-
-                        if campaign.lower().startswith("kraken"):
-                            af_sub5_random = random.choice(["1491074310", "1617391485", "591560124"])
-                            af_ad_random = random.choice(["Consumer-Banners-Creative-Refresh", "Kraken_Set_Trading"])
-                            link = re.sub(r'af_sub5=[^&]*', f'af_sub5={af_sub5_random}', link)
-                            link = re.sub(r'af_ad=[^&]*', f'af_ad={af_ad_random}', link)
-
-                        final_links.append(f"{link_type} (OS: {current_os}, PID: {pid}): {link}")
-                        generated_pid_os_set.add(key)
-                        link_count_for_type += 1
-
-                    if link_count_for_type > 0:
-                        log_link_stats(campaign, link_type, len(pid_inputs), link_count_for_type)
-
-    return render_template("index.html",
-                           campaigns=campaigns,
-                           oses=oses,
-                           link_types=link_types,
+    return render_template("index.html", campaigns=campaigns,
+                           oses=oses, link_types=link_types,
                            final_links=final_links)
 
 if __name__ == "__main__":

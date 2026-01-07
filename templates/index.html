@@ -183,65 +183,75 @@
         .robot-gif {
             width: 350px;
         }
+
+
     </style>
 </head>
+
 <body>
-    <div class="header">
-        <div></div>
-        <img src="{{ url_for('static', filename='Axponent.png') }}" alt="Logo" class="logo">
-    </div>
+<div class="header">
+    <div></div>
+    <img src="{{ url_for('static', filename='Axponent.png') }}" class="logo">
+</div>
 
-    <div class="container">
-        <h1>🔗 Link Generator</h1>
-        <form method="post" id="linkForm">
-            <label for="campaign">Campaign</label>
-            <select name="campaign" id="campaign" class="select2">
-                {% for c in campaigns %}
-                    <option value="{{ c }}">{{ c }}</option>
-                {% endfor %}
-            </select>
+<div class="container">
+    <h1>🔗 Link Generator</h1>
 
-            <div class="spacer"></div>
+    <form method="post">
 
-            <label>Select OS</label>
-            <div class="checkbox-group">
-                {% for o in oses %}
-                    <label><input type="checkbox" name="os" value="{{ o }}"> {{ o }}</label>
-                {% endfor %}
-            </div>
+        <label>Campaign</label>
+        <select name="campaign" class="select2">
+            {% for c in campaigns %}
+                <option value="{{ c }}">{{ c }}</option>
+            {% endfor %}
+        </select>
 
-            <label for="publisher">Publisher Name</label>
-            <input type="text" name="publisher" id="publisher">
+        <label>Select OS</label>
+        <div class="checkbox-group">
+            {% for o in oses %}
+                <label><input type="checkbox" name="os" value="{{ o }}"> {{ o }}</label>
+            {% endfor %}
+        </div>
 
-            <label for="pid">Enter PIDs (comma separated)</label>
-            <input type="text" name="pid" id="pid">
+        <label>Publisher Name</label>
+        <select name="publisher" id="publisher" class="select2" required>
+            <option value="">-- Select Publisher --</option>
+            {% for pub in publishers %}
+                <option value="{{ pub }}">{{ pub }}</option>
+            {% endfor %}
+        </select>
 
-            <label>Select Link Types</label>
-            <div class="checkbox-group">
-                {% for lt in link_types %}
-                    <label><input type="checkbox" name="link_type" value="{{ lt }}"> {{ lt }}</label>
-                {% endfor %}
-            </div>
+        <label>Enter PIDs (comma separated)</label>
+        <input type="text" name="pid">
 
-            <input type="submit" value="Generate Links">
-        </form>
+        <label>Select Link Types</label>
+        <div class="checkbox-group">
+            {% for lt in link_types %}
+                <label><input type="checkbox" name="link_type" value="{{ lt }}"> {{ lt }}</label>
+            {% endfor %}
+        </div>
 
-        {% if final_links %}
-            <a href="data:text/plain;charset=utf-8,{{ final_links | join('\n\n') | urlencode }}" 
-               download="all_links.txt" class="download-link">
-                📄 Download All Links
-            </a>
+        <input type="submit" value="Generate Links">
+    </form>
 
-            <h2>Generated Links</h2>
-            <ul>
-                {% for link in final_links %}
-                    <li>{{ link }}</li>
-                {% endfor %}
-            </ul>
-        {% endif %}
-    </div>
+    {% if final_links %}
 
-    <!-- Chatbot GIF -->
+        <!-- ✅ DOWNLOAD TXT -->
+        <a href="data:text/plain;charset=utf-8,{{ final_links | join('\n\n') | urlencode }}"
+           download="generated_links.txt"
+           style="display:block;text-align:center;margin:15px 0;color:#38bdf8;font-weight:600;">
+            📄 Download All Links (TXT)
+        </a>
+
+        <ul>
+            {% for link in final_links %}
+                <li>{{ link }}</li>
+            {% endfor %}
+        </ul>
+
+    {% endif %}
+</div>
+ <!-- Chatbot GIF -->
     <img src="{{ url_for('static', filename='RobotSaludando.gif') }}" alt="Chatbot" class="chatbot">
 
     <!-- Flying Robot -->
@@ -251,27 +261,12 @@
         <img src="{{ url_for('static', filename='Cute Robot Flying Cartoon.gif') }}" alt="Robot" class="robot-gif">
     </div>
 
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-    <script>
-        $(document).ready(function () {
-            $('.select2').select2();
-
-            // Store initial campaign selection
-            let initialCampaign = $('#campaign').val();
-
-            // Show robot if links are generated
-            {% if final_links %}
-                document.getElementById('robot-container').style.display = 'flex';
-            {% endif %}
-
-            // Hide robot only when campaign changes
-            $('#campaign').on('change', function () {
-                if ($(this).val() !== initialCampaign) {
-                    document.getElementById('robot-container').style.display = 'none';
-                }
-            });
-        });
-    </script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+    $(document).ready(function () {
+        $('.select2').select2();
+    });
+</script>
 </body>
 </html>

@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Link Generator</title>
+
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet"/>
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet"/>
 
@@ -15,180 +16,114 @@
             background-color: #0f172a;
             color: #f1f5f9;
         }
-
         .header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             padding: 20px 40px;
-            background-color: #0f172a;
         }
-
         .logo {
             height: 50px;
         }
-
         .container {
-            max-width: 800px;
+            max-width: 900px;
             margin: 20px auto;
             background-color: #1e293b;
             padding: 40px;
             border-radius: 16px;
             box-shadow: 0 0 30px rgba(0,0,0,0.5);
-            position: relative;
         }
-
         h1 {
             text-align: center;
             font-weight: 800;
             color: #38bdf8;
             margin-bottom: 30px;
         }
-
         label {
             font-weight: 600;
             display: block;
             margin: 15px 0 5px;
         }
-
-        input[type="text"],
-        select {
+        select, input[type="text"] {
             width: 100%;
             padding: 12px;
             border: none;
             border-radius: 8px;
-            margin-bottom: 10px;
             background-color: #334155;
             color: #f1f5f9;
         }
-
         .select2-container .select2-selection--single {
-            background-color: #334155;
-            color: #f1f5f9;
+            background-color: #334155 !important;
             border: none;
             height: 44px;
             border-radius: 8px;
         }
-
-        .select2-container--default .select2-selection--single .select2-selection__rendered {
-            color: #f1f5f9;
-            line-height: 44px;
-            padding-left: 12px;
+        .select2-selection__rendered {
+            color: #f1f5f9 !important;
+            line-height: 44px !important;
+            padding-left: 12px !important;
         }
-
-        .select2-container--default .select2-selection--single .select2-selection__arrow {
-            height: 44px;
-            right: 10px;
-        }
-
-        input[type="checkbox"] {
-            margin-right: 10px;
-        }
-
         .checkbox-group {
             background-color: #1e293b;
             padding: 10px;
             border-radius: 8px;
             margin-bottom: 20px;
         }
-
-        .checkbox-group label {
-            display: block;
-            margin: 8px 0;
-        }
-
         input[type="submit"] {
             background-color: #38bdf8;
             border: none;
             color: #0f172a;
-            padding: 12px 24px;
+            padding: 12px;
             border-radius: 8px;
             cursor: pointer;
             font-weight: 600;
             font-size: 16px;
             width: 100%;
-            margin-bottom: 20px;
         }
-
+        .info-text {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-bottom: 10px;
+        }
+        .creative-preview {
+            background-color: #0f172a;
+            padding: 10px;
+            border-radius: 6px;
+            margin-top: 5px;
+            font-size: 12px;
+            display: none;
+            border-left: 3px solid #38bdf8;
+        }
+        .creative-preview.visible {
+            display: block;
+        }
         ul {
             margin-top: 20px;
-            padding-left: 20px;
         }
-
         li {
-            margin-bottom: 20px;
+            margin-bottom: 15px;
             background-color: #334155;
             padding: 10px;
             border-radius: 6px;
             word-break: break-word;
         }
-
         .download-link {
             color: #38bdf8;
-            text-decoration: underline;
-            font-size: 14px;
-            display: inline-block;
+            display: block;
+            margin-top: 20px;
             text-align: center;
-            margin-top: 10px;
-            width: 100%;
         }
-
-        .spacer {
-            margin-top: 25px;
+        .select-all {
+            cursor: pointer;
+            font-size: 12px;
+            color: #38bdf8;
+            margin-left: 10px;
         }
-
-        .chatbot {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            height: 300px;
-            width: auto;
-            z-index: 100;
-        }
-
-        .robot-container {
-            position: fixed;
-            bottom: 20px;
-            left: 20px;
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            z-index: 999;
-        }
-
-        .thought-bubble {
-    width: 180px;
-    margin-bottom: -20px;
-    z-index: 10;
-    display: block;
-    position: relative;
-    left: 30px;
-}
-
-        
-.bubble-text {
-    position: absolute;
-    top: 15%;
-    left: 59%;
-    transform: translate(-50%, -50%);
-    width: 130px;
-    text-align: center;
-    font-size: 13px;
-    color: black;
-    font-weight: bold;
-    z-index: 1000;
-    pointer-events: none;
-}
-
-        .robot-gif {
-            width: 350px;
-        }
-
-
     </style>
 </head>
 
 <body>
+
 <div class="header">
     <div></div>
     <img src="{{ url_for('static', filename='Axponent.png') }}" class="logo">
@@ -200,21 +135,30 @@
     <form method="post">
 
         <label>Campaign</label>
-        <select name="campaign" class="select2">
+        <select name="campaign" id="campaignSelect" class="select2" required>
+            <option value="">-- Select Campaign --</option>
             {% for c in campaigns %}
                 <option value="{{ c }}">{{ c }}</option>
             {% endfor %}
         </select>
 
-        <label>Select OS</label>
+        <label>Select OS <span class="select-all" id="selectAllOS">Select All</span></label>
         <div class="checkbox-group">
             {% for o in oses %}
                 <label><input type="checkbox" name="os" value="{{ o }}"> {{ o }}</label>
             {% endfor %}
         </div>
 
-        <label>Publisher Name</label>
-        <select name="publisher" id="publisher" class="select2" required>
+        <!-- 🔥 NEW MANUAL PUBLISHER -->
+        <label>Manual Publisher ID (Optional)</label>
+        <input type="text" name="manual_publisher_id" id="manualPublisher"
+               placeholder="Enter Publisher ID manually">
+        <div class="info-text">
+            If filled, Publisher dropdown will be ignored.
+        </div>
+
+        <label>Publisher Name (Optional)</label>
+        <select name="publisher" id="publisher" class="select2">
             <option value="">-- Select Publisher --</option>
             {% for pub in publishers %}
                 <option value="{{ pub }}">{{ pub }}</option>
@@ -222,7 +166,20 @@
         </select>
 
         <label>Enter PIDs (comma separated)</label>
-        <input type="text" name="pid">
+        <input type="text" name="pid" placeholder="pid1, pid2" required>
+
+        <label>Creative Size</label>
+        <select name="creative_size" id="creative_size" class="select2">
+            <option value="">-- Select Creative Size --</option>
+            {% for column in creative_columns %}
+                <option value="{{ column }}">{{ column }}</option>
+            {% endfor %}
+        </select>
+
+        <div id="creativePreview" class="creative-preview">
+            <strong>Creative Value added to af_ad:</strong><br>
+            <span id="creativeValue">None</span>
+        </div>
 
         <label>Select Link Types</label>
         <div class="checkbox-group">
@@ -235,38 +192,69 @@
     </form>
 
     {% if final_links %}
-
-        <!-- ✅ DOWNLOAD TXT -->
-        <a href="data:text/plain;charset=utf-8,{{ final_links | join('\n\n') | urlencode }}"
-           download="generated_links.txt"
-           style="display:block;text-align:center;margin:15px 0;color:#38bdf8;font-weight:600;">
-            📄 Download All Links (TXT)
+        <a class="download-link"
+           href="data:text/plain;charset=utf-8,{{ final_links | join('\n\n') | urlencode }}"
+           download="generated_links.txt">
+            📄 Download All Links
         </a>
-
         <ul>
             {% for link in final_links %}
                 <li>{{ link }}</li>
             {% endfor %}
         </ul>
-
     {% endif %}
 </div>
- <!-- Chatbot GIF -->
-    <img src="{{ url_for('static', filename='RobotSaludando.gif') }}" alt="Chatbot" class="chatbot">
-
-    <!-- Flying Robot -->
-    <div class="robot-container" id="robot-container">
-        <img src="{{ url_for('static', filename='Thought bubble.gif') }}" alt="Bubble" class="thought-bubble">
-        <span class="bubble-text">Now campaign touches the sky!</span>
-        <img src="{{ url_for('static', filename='Cute Robot Flying Cartoon.gif') }}" alt="Robot" class="robot-gif">
-    </div>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
 <script>
-    $(document).ready(function () {
-        $('.select2').select2();
+$(document).ready(function () {
+
+    $('.select2').select2({ width: '100%' });
+
+    // Select all OS
+    $('#selectAllOS').click(function () {
+        const all = $('input[name="os"]');
+        const checked = $('input[name="os"]:checked');
+        all.prop('checked', all.length !== checked.length);
     });
+
+    // Disable publisher dropdown if manual ID is entered
+    $('#manualPublisher').on('input', function () {
+        if ($(this).val().trim()) {
+            $('#publisher').prop('disabled', true).val('').trigger('change');
+        } else {
+            $('#publisher').prop('disabled', false);
+        }
+    });
+
+    // Fetch creative preview
+    function fetchCreativeValue() {
+        const campaign = $('#campaignSelect').val();
+        const creative = $('#creative_size').val();
+
+        if (!campaign || !creative) {
+            $('#creativePreview').removeClass('visible');
+            return;
+        }
+
+        $('#creativePreview').addClass('visible');
+        $('#creativeValue').text('Loading...');
+
+        $.get('/get_creative_value', {
+            campaign: campaign,
+            creative_column: creative
+        }, function (res) {
+            $('#creativeValue').text(res.creative_value || 'No value found');
+        }).fail(function () {
+            $('#creativeValue').text('Error fetching value');
+        });
+    }
+
+    $('#campaignSelect, #creative_size').on('change', fetchCreativeValue);
+});
 </script>
+
 </body>
 </html>

@@ -24,7 +24,7 @@ if not os.path.exists(STATS_FILE):
 def load_campaign_data():
     df = pd.read_csv(CAMPAIGN_SHEET_CSV)
     df.columns = df.columns.str.strip()
-    df = df.applymap(lambda v: v.strip() if isinstance(v, str) else v)
+    df = df.map(lambda v: v.strip() if isinstance(v, str) else v)
     df.fillna("", inplace=True)
     return df
 
